@@ -6,8 +6,22 @@ macro_rules! e {
     () => { &format!("{}:{}", file!(), line!()) };
 }
 
+//extern crate itertools;       // itertools's group_by() only works on consecutive elements!..
+//use itertools::Itertools;     // misleading. should have been called "chunk_by" or something.
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::hash::Hash;
+
+fn group_by<K, V, F>(items: &[V], get_key: F) -> HashMap<K, Vec<V>> // I somehow didn't find this in the std lib
+    where K: Eq + Hash + Clone, V: Clone, F: Fn(&V) -> &K
+{
+    let mut result: HashMap<K, Vec<V>> = HashMap::new();
+    for item in items {
+        let key = get_key(item);
+        result.entry(key.clone()).or_insert(Vec::new()).push(item.clone());
+    }
+    result
+}
 
 fn strings_input(i: i64) -> Vec<String> {
     use std::fs::File;
@@ -25,6 +39,7 @@ fn main() {
     // println!("{}", std::env::current_dir().expect(e!()).to_str().expect(e!()));
     assert_eq!(day1p1(), 516);
     assert_eq!(day1p2(), 71892);
+    assert_eq!(day2p1(), 6370);
 }
 
 fn day1p1() -> i64 {
@@ -50,8 +65,38 @@ fn day1p2() -> i64 {
     }
 }
 
+fn has_unique_letter_count(s: &str, count: usize) -> bool {
+    let groups = group_by(&s.chars().collect::<Vec<char>>(), |c| c);
+    groups.into_iter().any(|(_k,g)| g.into_iter().count() == count)
+}
+fn day2p1() -> i64 {
+    let strings: Vec<String> = strings_input(2);
 
-// for i in &mut v {
+    // Longass optimized version that doesn't use group_by. I wrote it first because I didn't find a group_by. 
+    // let mut c2 = 0;
+    // let mut c3 = 0;
+    // for line in strings {
+    //     let chars = &line.chars().collect::<Vec<char>>();
+    //     let mut result: HashMap<&char, i64> = HashMap::new();
+    //     for c in chars {
+    //         let mut v = result.entry(c).or_insert(0);
+    //         *v += 1;
+    //     }
+    //     if result.values().any(|&v| v == 2) {
+    //         c2 += 1;
+    //     }
+    //     if result.values().any(|&v| v == 3) {
+    //         c3 += 1;
+    //     }
+    // }
+
+    let c2 = (&strings).into_iter().filter(|s| has_unique_letter_count(s, 2)).count() as i64;
+    let c3 = (&strings).into_iter().filter(|s| has_unique_letter_count(s, 3)).count() as i64;
+
+    println!("{}", c2 * c3);
+    c2 * c3
+}
+
 
 
 // TODO: setup rust-fmt with vscode
