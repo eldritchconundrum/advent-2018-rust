@@ -40,6 +40,7 @@ fn main() {
     assert_eq!(day1p1(), 516);
     assert_eq!(day1p2(), 71892);
     assert_eq!(day2p1(), 6370);
+    assert_eq!(day2p2(), "rmyxgdlihczskunpfijqcebtv");
 }
 
 fn day1p1() -> i64 {
@@ -95,6 +96,33 @@ fn day2p1() -> i64 {
 
     println!("{}", c2 * c3);
     c2 * c3
+}
+
+
+fn differs_by_exactly_one(s1: &String, s2: &String) -> bool {
+    let pairs = s1.chars().zip(s2.chars());
+    pairs.filter(|(c1, c2)| c1 != c2).count() == 1
+}
+fn common_letters(s1: &String, s2: &String) -> String {
+    let pairs = s1.chars().zip(s2.chars());
+    pairs.filter(|(c1, c2)| c1 == c2).map(|(c,_)| c).collect()
+}
+fn find_pair(strings: &[String]) -> (&String, &String) {
+    for s1 in strings {
+        for s2 in strings {
+            if differs_by_exactly_one(s1, s2) {
+                return (s1, s2)
+            }
+        }
+    }
+    panic!();
+}
+fn day2p2() -> String {
+    let strings = strings_input(2);
+    let (s1, s2) = find_pair(&strings);
+    let common_letters = common_letters(s1, s2);
+    println!("{}", common_letters);
+    common_letters
 }
 
 
