@@ -1,70 +1,17 @@
-#![allow(unused_imports)] // TODO: find how to enable this warning only when I'm about to commit, not while I'm debugging
+// If I understand correctly, main is a special place where we declare the other files' modules
+mod matrix;
+mod point;
+mod utils;
+// And also we use them obv
+use matrix::*;
+use point::*;
+use utils::*;
 
-// how comes unwrap doesn't do this by default?
-macro_rules! e {
-    ($fmt:expr, $($e:expr),*) => { &format!(concat!("{}:{}: ", $fmt), file!(), line!(), $($e),*) };
-    ($e:expr) => { &format!("{}:{}: {}", file!(), line!(), $e) };
-    () => { &format!("{}:{}", file!(), line!()) };
-}
-
-// how comes we can't derive Display? Debug is a fine default.
-macro_rules! implement_display_as_debug {
-    ($type: ty) => {
-        impl ::std::fmt::Display for $type {
-            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                write!(f, "{:?}", self)
-            }
-        }
-    };
-}
-
-//#[allow(unused_macros)]
-
-// we need this macro to bypass the "helpful" compiler error in fmt_!():
-// "attempted to repeat an expression containing no syntax variables matched as repeating at this depth"
-macro_rules! fmt_internal_helper {
-    ($e:expr) => {
-        "{}"
-    };
-}
-
-// with this, no need for all those format strings that are just "{}"
-macro_rules! fmt_ {
-    ($($e:expr),*) => {
-        format!(
-            concat!( $( fmt_internal_helper!($e), )* "" ),
-            $($e),*
-            )
-    }
-}
-//TODO: make my own version of print!, write!, println!, writeln!...
+// "extern crate" statements are not needed anymore because Cargo.toml is edition="2018" somehow.
+#[macro_use] // except this one
+extern crate lazy_static;
 
 // ---------------------------------------------------------------------------------------------------------------------
-
-extern crate parse_display;
-extern crate regex;
-//extern crate itertools;       // itertools's group_by() only works on consecutive elements!..
-//use itertools::Itertools;     // misleading. should have been called "chunk_by" or something.
-use parse_display::{Display, FromStr};
-use regex::Regex;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::hash::Hash;
-
-// I somehow didn't find this in the std lib
-fn group_by<K, V, F>(items: &[V], get_key: F) -> HashMap<K, Vec<V>>
-where
-    K: Eq + Hash + Clone,
-    V: Clone,
-    F: Fn(&V) -> &K,
-{
-    let mut result: HashMap<K, Vec<V>> = HashMap::new();
-    for item in items {
-        let key = get_key(item);
-        result.entry(key.clone()).or_insert(Vec::new()).push(item.clone());
-    }
-    result
-}
 
 fn strings_input(i: i64) -> Vec<String> {
     use std::fs::File;
@@ -75,158 +22,6 @@ fn strings_input(i: i64) -> Vec<String> {
     let v = reader.lines().map(|s| s.expect(e!())).collect();
     v
 }
-
-// ---------------------------------------------------------------------------------------------------------------------
-
-use std::fmt;
-use std::ops;
-
-#[derive(Display, Clone, Copy, Debug, Default)]
-#[display("{x},{y}")]
-pub struct Point {
-    x: i64,
-    y: i64,
-}
-
-impl ops::Add<Point> for Point {
-    type Output = Point;
-    fn add(self, rhs: Point) -> Point {
-        Point {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-impl ops::Sub<Point> for Point {
-    type Output = Point;
-    fn sub(self, rhs: Point) -> Point {
-        Point {
-            x: self.x - rhs.x,
-            y: self.y - rhs.y,
-        }
-    }
-}
-impl ops::Mul<i64> for Point {
-    type Output = Point;
-    fn mul(self, rhs: i64) -> Point {
-        Point {
-            x: self.x * rhs,
-            y: self.y * rhs,
-        }
-    }
-}
-impl ops::Neg for Point {
-    type Output = Point;
-    fn neg(self) -> Point {
-        Point { x: -self.x, y: -self.y }
-    }
-}
-impl Point {
-    pub fn new(x: i64, y: i64) -> Point {
-        Point { x: x, y: y }
-    }
-    pub fn zero() -> Point {
-        Point { x: 0, y: 0 }
-    }
-    pub fn taxi_distance(&self, p: Point) -> i64 {
-        (p.x - self.x).abs() + (p.y - self.y).abs()
-    }
-    pub fn neighbors4(&self) -> Vec<Point> {
-        vec![
-            Point::new(self.x + 1, self.y),
-            Point::new(self.x - 1, self.y),
-            Point::new(self.x, self.y + 1),
-            Point::new(self.x, self.y - 1),
-        ]
-    }
-    pub fn neighbors8(&self) -> Vec<Point> {
-        vec![
-            Point::new(self.x + 1, self.y + 1),
-            Point::new(self.x - 1, self.y + 1),
-            Point::new(self.x + 1, self.y - 1),
-            Point::new(self.x - 1, self.y - 1),
-            Point::new(self.x + 1, self.y),
-            Point::new(self.x - 1, self.y),
-            Point::new(self.x, self.y + 1),
-            Point::new(self.x, self.y - 1),
-        ]
-    }
-    pub fn points_at_distance_at_most(&self, distance: i64) -> Vec<Point> {
-        let mut vec: Vec<Point> = Vec::new();
-        for dx in (-distance)..(distance + 1) {
-            for dy in (-distance)..(distance + 1) {
-                if dx.abs() + dy.abs() <= distance {
-                    vec.push(Point {
-                        x: self.x + dx,
-                        y: self.y + dy,
-                    });
-                }
-            }
-        }
-        vec
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
-
-pub struct Matrix<T>
-where
-    T: Clone,
-{
-    x_size: usize,
-    y_size: usize,
-    vec: Vec<Vec<T>>,
-}
-impl<T> Matrix<T>
-where
-    T: Copy + Clone,
-{
-    pub fn from_func(x_size: usize, y_size: usize, init: &dyn Fn() -> T) -> Matrix<T> {
-        Matrix {
-            x_size: x_size,
-            y_size: y_size,
-            vec: vec![vec![init(); y_size]; x_size],
-        }
-    }
-    pub fn new(x_size: usize, y_size: usize, default_value: T) -> Matrix<T> {
-        Matrix {
-            x_size: x_size,
-            y_size: y_size,
-            vec: vec![vec![default_value; y_size]; x_size],
-        }
-    }
-    pub fn get(&self, p: Point) -> Option<T> {
-        if !range(&self.vec).contains(&(p.x as usize)) {
-            return None;
-        }
-        let vec2 = &self.vec[p.x as usize];
-        if !range(&vec2).contains(&(p.y as usize)) {
-            return None;
-        }
-        Some(vec2[p.y as usize])
-    }
-    pub fn set(&mut self, p: Point, item: T) {
-        self.vec[p.x as usize][p.y as usize] = item;
-    }
-    // TODO: implement Index/IndexMut?
-    pub fn values(&self) -> Vec<T> {
-        let mut values: Vec<T> = Vec::new();
-        for x in range(&self.vec) {
-            for y in range(&self.vec) {
-                values.push(self.vec[x][y]);
-            }
-        }
-        values
-    }
-}
-
-use std::ops::Range;
-// does this exist in the std lib?
-pub fn range<T>(vec: &Vec<T>) -> Range<usize> {
-    0..vec.len()
-}
-
-// ---------------------------------------------------------------------------------------------------------------------
 
 fn main() {
     // println!("{}", std::env::current_dir().expect(e!()).to_str().expect(e!()));
@@ -266,32 +61,12 @@ fn day1p2() -> i64 {
 
 fn has_unique_letter_count(s: &str, count: usize) -> bool {
     let groups = group_by(&s.chars().collect::<Vec<char>>(), |c| c);
-    groups.into_iter().any(|(_k, g)| g.into_iter().count() == count)
+    groups.into_iter().any(|(_k, g)| g.len() == count)
 }
 fn day2p1() -> i64 {
     let strings: Vec<String> = strings_input(2);
-
-    // Longass optimized version that doesn't use group_by. I wrote it first because I didn't find a group_by.
-    // let mut c2 = 0;
-    // let mut c3 = 0;
-    // for line in strings {
-    //     let chars = &line.chars().collect::<Vec<char>>();
-    //     let mut result: HashMap<&char, i64> = HashMap::new();
-    //     for c in chars {
-    //         let mut v = result.entry(c).or_insert(0);
-    //         *v += 1;
-    //     }
-    //     if result.values().any(|&v| v == 2) {
-    //         c2 += 1;
-    //     }
-    //     if result.values().any(|&v| v == 3) {
-    //         c3 += 1;
-    //     }
-    // }
-
     let c2 = (&strings).into_iter().filter(|s| has_unique_letter_count(s, 2)).count() as i64;
     let c3 = (&strings).into_iter().filter(|s| has_unique_letter_count(s, 3)).count() as i64;
-
     println!("{}", c2 * c3);
     c2 * c3
 }
@@ -333,8 +108,6 @@ struct Rect {
     w: i64,
     h: i64,
 }
-#[macro_use]
-extern crate lazy_static;
 lazy_static! {
     static ref REGEX: Regex = Regex::new(r"^#([\d]+) @ (\d+),(\d+): (\d+)x(\d+)$").expect(e!());
 }
