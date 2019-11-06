@@ -18,6 +18,8 @@ macro_rules! implement_display_as_debug {
     };
 }
 
+//#[allow(unused_macros)]
+
 // we need this macro to bypass the "helpful" compiler error in fmt_!():
 // "attempted to repeat an expression containing no syntax variables matched as repeating at this depth"
 macro_rules! fmt_internal_helper {
@@ -25,6 +27,7 @@ macro_rules! fmt_internal_helper {
         "{}"
     };
 }
+
 // with this, no need for all those format strings that are just "{}"
 macro_rules! fmt_ {
     ($($e:expr),*) => {
@@ -38,9 +41,11 @@ macro_rules! fmt_ {
 
 // ---------------------------------------------------------------------------------------------------------------------
 
+extern crate parse_display;
 extern crate regex;
 //extern crate itertools;       // itertools's group_by() only works on consecutive elements!..
 //use itertools::Itertools;     // misleading. should have been called "chunk_by" or something.
+use parse_display::{Display, FromStr};
 use regex::Regex;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -76,17 +81,11 @@ fn strings_input(i: i64) -> Vec<String> {
 use std::fmt;
 use std::ops;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Display, Clone, Copy, Debug, Default)]
+#[display("{x},{y}")]
 pub struct Point {
     x: i64,
     y: i64,
-}
-
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        //write!(f, "{},{}", self.x, self.y)
-        write!(f, "{}", fmt_!(self.x, self.y))
-    }
 }
 
 impl ops::Add<Point> for Point {
@@ -180,15 +179,15 @@ where
 }
 impl<T> Matrix<T>
 where
-    T: Clone,
+    T: Copy + Clone,
 {
-    // pub fn from_func(x_size: usize, y_size: usize, init: Fn() -> T) -> Matrix<T> {
-    //     Matrix {
-    //         x_size: x_size,
-    //         y_size: y_size,
-    //         vec: vec![vec![init(); y_size]; x_size],
-    //     }
-    // }
+    pub fn from_func(x_size: usize, y_size: usize, init: &dyn Fn() -> T) -> Matrix<T> {
+        Matrix {
+            x_size: x_size,
+            y_size: y_size,
+            vec: vec![vec![init(); y_size]; x_size],
+        }
+    }
     pub fn new(x_size: usize, y_size: usize, default_value: T) -> Matrix<T> {
         Matrix {
             x_size: x_size,
@@ -196,12 +195,36 @@ where
             vec: vec![vec![default_value; y_size]; x_size],
         }
     }
+    pub fn get(&self, p: Point) -> Option<T> {
+        if !range(&self.vec).contains(&(p.x as usize)) {
+            return None;
+        }
+        let vec2 = &self.vec[p.x as usize];
+        if !range(&vec2).contains(&(p.y as usize)) {
+            return None;
+        }
+        Some(vec2[p.y as usize])
+    }
+    pub fn set(&mut self, p: Point, item: T) {
+        self.vec[p.x as usize][p.y as usize] = item;
+    }
+    // TODO: implement Index/IndexMut?
+    pub fn values(&self) -> Vec<T> {
+        let mut values: Vec<T> = Vec::new();
+        for x in range(&self.vec) {
+            for y in range(&self.vec) {
+                values.push(self.vec[x][y]);
+            }
+        }
+        values
+    }
 }
-//impl Iterable<(Point, T)>
 
-//
-
-//
+use std::ops::Range;
+// does this exist in the std lib?
+pub fn range<T>(vec: &Vec<T>) -> Range<usize> {
+    0..vec.len()
+}
 
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -211,7 +234,7 @@ fn main() {
     assert_eq!(day1p2(), 71892);
     assert_eq!(day2p1(), 6370);
     assert_eq!(day2p2(), "rmyxgdlihczskunpfijqcebtv");
-    //assert_eq!(day3p1(), 120408);
+    assert_eq!(day3p1(), 120408);
 }
 
 // day 1 ---------------------------------------------------------------------------------------------------------------
@@ -310,9 +333,13 @@ struct Rect {
     w: i64,
     h: i64,
 }
+#[macro_use]
+extern crate lazy_static;
+lazy_static! {
+    static ref REGEX: Regex = Regex::new(r"^#([\d]+) @ (\d+),(\d+): (\d+)x(\d+)$").expect(e!());
+}
 fn parse(line: String) -> Rect {
-    let re = Regex::new(r"^([\d]+) @ (\d+),(\d+): (\d+)x(\d+)$").expect(e!());
-    let m = re.captures(&line).expect(e!());
+    let m = REGEX.captures(&line).expect(e!(line));
     Rect {
         id: m.get(1).expect(e!()).as_str().parse().expect(e!()),
         x: m.get(2).expect(e!()).as_str().parse().expect(e!()),
@@ -321,28 +348,23 @@ fn parse(line: String) -> Rect {
         h: m.get(5).expect(e!()).as_str().parse().expect(e!()),
     } // wow, I sure miss Kotlin's  val (id,x,y,w,h) = re.find(line)!!.destructured
 }
-// fn matrix(rects: &[Rect]) -> Matrix<i64> {
-//     let mut m: Matrix<i64> = Matrix::new();
-//     for rect in rects {
-//         for x in (rect.x)..(rect.x + rect.w) { // upper bound exclusive
-//             for y in (rect.y)..(rect.y + rect.h) { // upper bound exclusive
-//                 m[(x,y)] = m[(x,y)] + 1;
-//             }
-//         }
-//     }
-//     m
-// }
-// fn day3p1() -> i64 {
-//     let rects = strings_input(3).into_iter().map(parse);
-//     let m = matrix(rects);
-//     //m.values().count { it > 1 }
-//     123
-// }
-
-// TODO: setup rust-fmt with vscode
-
-// #[cfg(test)]
-// #[test]
-// fn test1() {
-//     assert_eq!(2 + 2, 4);
-// }
+fn matrix(rects: &[Rect]) -> Matrix<i64> {
+    let mut m: Matrix<i64> = Matrix::new(1000, 1000, 0);
+    for rect in rects {
+        for x in (rect.x)..(rect.x + rect.w) {
+            for y in (rect.y)..(rect.y + rect.h) {
+                //m[(x, y)] = m[(x, y)] + 1;
+                let v = m.get(Point::new(x, y)).expect(e!(fmt_!(Point::new(x, y)))) + 1;
+                m.set(Point::new(x, y), v);
+            }
+        }
+    }
+    m
+}
+fn day3p1() -> usize {
+    let rects: &[Rect] = &strings_input(3).into_iter().map(parse).collect::<Vec<Rect>>();
+    let m = matrix(rects);
+    let count = m.values().into_iter().filter(|v| *v as i64 > 1 as i64).count();
+    println!("{}", count);
+    count
+}
