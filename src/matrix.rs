@@ -18,7 +18,10 @@ where
     pub fn y_size(&self) -> usize {
         self.vec[0].len()
     }
-    pub fn from_func(x_size: usize, y_size: usize, init: &dyn Fn() -> T) -> Matrix<T> {
+    pub fn from_func<F>(x_size: usize, y_size: usize, init: F) -> Matrix<T>
+    where
+        F: Fn() -> T,
+    {
         assert!(x_size > 0); // or y_size will crash later
         Matrix {
             vec: vec![vec![init(); y_size]; x_size],

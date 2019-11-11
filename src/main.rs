@@ -1,15 +1,16 @@
+#![allow(unused)]
+
 // If I understand correctly, main is a special place where we declare the other files' modules
 mod matrix;
 mod point;
 mod utils;
 // And also we use them obv
+use lazy_static::lazy_static;
 use matrix::*;
 use point::*;
 use utils::*;
 
-// "extern crate" statements are not needed anymore because Cargo.toml is edition="2018" somehow.
-#[macro_use] // except this one
-extern crate lazy_static;
+// "extern crate" statements are not needed anymore, because my Cargo.toml is edition="2018" now.
 
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -30,18 +31,19 @@ fn main() {
     assert_eq!(day2p1(), 6370);
     assert_eq!(day2p2(), "rmyxgdlihczskunpfijqcebtv");
     assert_eq!(day3p1(), 120408);
+    assert_eq!(day3p2(), 1276);
 }
 
 // day 1 ---------------------------------------------------------------------------------------------------------------
 
 fn day1p1() -> i64 {
-    let numbers: Vec<i64> = strings_input(1).into_iter().map(|s| s.parse().expect(e!())).collect();
+    let numbers: Vec<i64> = strings_input(1).iter().map(|s| s.parse().expect(e!())).collect();
     println!("{}", numbers.iter().sum::<i64>());
     numbers.iter().sum()
 }
 
 fn day1p2() -> i64 {
-    let numbers: Vec<i64> = strings_input(1).into_iter().map(|s| s.parse().expect(e!())).collect();
+    let numbers: Vec<i64> = strings_input(1).iter().map(|s| s.parse().expect(e!())).collect();
     let mut seen = HashSet::<i64>::new();
     let mut s = 0;
     loop {
@@ -61,19 +63,19 @@ fn day1p2() -> i64 {
 
 fn has_unique_letter_count(s: &str, count: usize) -> bool {
     let groups = group_by(&s.chars().collect::<Vec<char>>(), |c| c);
-    groups.into_iter().any(|(_k, g)| g.len() == count)
+    groups.iter().any(|(_k, g)| g.len() == count)
 }
 fn day2p1() -> i64 {
     let strings: Vec<String> = strings_input(2);
-    let c2 = (&strings).into_iter().filter(|s| has_unique_letter_count(s, 2)).count() as i64;
-    let c3 = (&strings).into_iter().filter(|s| has_unique_letter_count(s, 3)).count() as i64;
+    let c2 = (strings).iter().count_where(|s| has_unique_letter_count(&s, 2)) as i64;
+    let c3 = (&strings).iter().count_where(|s| has_unique_letter_count(&s, 3)) as i64;
     println!("{}", c2 * c3);
     c2 * c3
 }
 
 fn differs_by_exactly_one(s1: &String, s2: &String) -> bool {
     let pairs = s1.chars().zip(s2.chars());
-    pairs.filter(|(c1, c2)| c1 != c2).count() == 1
+    pairs.count_where(|(c1, c2)| c1 != c2) == 1
 }
 fn common_letters(s1: &String, s2: &String) -> String {
     let pairs = s1.chars().zip(s2.chars());
@@ -100,7 +102,7 @@ fn day2p2() -> String {
 // day 3 ---------------------------------------------------------------------------------------------------------------
 
 implement_display_as_debug!(Rect);
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Rect {
     id: i64,
     x: i64,
@@ -111,7 +113,7 @@ struct Rect {
 lazy_static! {
     static ref REGEX: Regex = Regex::new(r"^#([\d]+) @ (\d+),(\d+): (\d+)x(\d+)$").expect(e!());
 }
-fn parse(line: String) -> Rect {
+fn parse(line: &String) -> Rect {
     let m = REGEX.captures(&line).expect(e!(line));
     Rect {
         id: m.get(1).expect(e!()).as_str().parse().expect(e!()),
@@ -135,9 +137,28 @@ fn matrix(rects: &[Rect]) -> Matrix<i64> {
     m
 }
 fn day3p1() -> usize {
-    let rects: &[Rect] = &strings_input(3).into_iter().map(parse).collect::<Vec<Rect>>();
+    let rects: &[Rect] = &strings_input(3).iter().map(parse).collect::<Vec<Rect>>();
     let m = matrix(rects);
-    let count = m.values().into_iter().filter(|v| *v as i64 > 1 as i64).count();
+    let count = m.values().iter().count_where(|v| **v as i64 > 1 as i64);
     println!("{}", count);
     count
 }
+
+fn is_good(rect: &Rect, m: &Matrix<i64>) -> bool {
+    for x in (rect.x)..(rect.x + rect.w) {
+        for y in (rect.y)..(rect.y + rect.h) {
+            if m.get(Point::new(x, y)).expect(e!()) > 1 {
+                return false;
+            }
+        }
+    }
+    true
+}
+fn day3p2() -> i64 {
+    let rects: &[Rect] = &strings_input(3).iter().map(parse).collect::<Vec<Rect>>();
+    let m = matrix(rects);
+    let good_rects: Vec<&Rect> = rects.iter().filter(|r| is_good(r, &m)).collect::<Vec<&Rect>>();
+    println!("{}", good_rects.iter().single().id);
+    good_rects.iter().single().id
+}
+
